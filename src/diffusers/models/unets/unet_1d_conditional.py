@@ -45,7 +45,7 @@ from ..embeddings import (
     Timesteps,
 )
 from ..modeling_utils import ModelMixin
-from .unet_2d_blocks import (
+from .unet_1d_blocks import (
     get_down_block,
     get_mid_block,
     get_up_block,
