@@ -19,7 +19,7 @@ import torch.nn as nn
 import torch.utils.checkpoint
 
 from ...configuration_utils import ConfigMixin, register_to_config
-from ...loaders import PeftAdapterMixin, UNet2DConditionLoadersMixin
+from ...loaders import PeftAdapterMixin, UNet1DConditionLoadersMixin
 from ...loaders.single_file_model import FromOriginalModelMixin
 from ...utils import USE_PEFT_BACKEND, BaseOutput, deprecate, logging, scale_lora_layers, unscale_lora_layers
 from ..activations import get_activation
@@ -56,9 +56,9 @@ logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
 
 
 @dataclass
-class UNet2DConditionOutput(BaseOutput):
+class UNet1DConditionOutput(BaseOutput):
     """
-    The output of [`UNet2DConditionModel`].
+    The output of [`UNet1DConditionModel`].
 
     Args:
         sample (`torch.Tensor` of shape `(batch_size, num_channels, height, width)`):
@@ -68,11 +68,11 @@ class UNet2DConditionOutput(BaseOutput):
     sample: torch.Tensor = None
 
 
-class UNet2DConditionModel(
-    ModelMixin, ConfigMixin, FromOriginalModelMixin, UNet2DConditionLoadersMixin, PeftAdapterMixin
+class UNet1DConditionModel(
+    ModelMixin, ConfigMixin, FromOriginalModelMixin, UNet1DConditionLoadersMixin, PeftAdapterMixin
 ):
     r"""
-    A conditional 2D UNet model that takes a noisy sample, conditional state, and a timestep and returns a sample
+    A conditional 1D UNet model that takes a noisy sample, conditional state, and a timestep and returns a sample
     shaped output.
 
     This model inherits from [`ModelMixin`]. Check the superclass documentation for it's generic methods implemented
@@ -87,12 +87,12 @@ class UNet2DConditionModel(
         flip_sin_to_cos (`bool`, *optional*, defaults to `True`):
             Whether to flip the sin to cos in the time embedding.
         freq_shift (`int`, *optional*, defaults to 0): The frequency shift to apply to the time embedding.
-        down_block_types (`Tuple[str]`, *optional*, defaults to `("CrossAttnDownBlock2D", "CrossAttnDownBlock2D", "CrossAttnDownBlock2D", "DownBlock2D")`):
+        down_block_types (`Tuple[str]`, *optional*, defaults to `("CrossAttnDownBlock1D", "CrossAttnDownBlock1D", "CrossAttnDownBlock1D", "DownBlock1D")`):
             The tuple of downsample blocks to use.
-        mid_block_type (`str`, *optional*, defaults to `"UNetMidBlock2DCrossAttn"`):
-            Block type for middle of UNet, it can be one of `UNetMidBlock2DCrossAttn`, `UNetMidBlock2D`, or
-            `UNetMidBlock2DSimpleCrossAttn`. If `None`, the mid block layer is skipped.
-        up_block_types (`Tuple[str]`, *optional*, defaults to `("UpBlock2D", "CrossAttnUpBlock2D", "CrossAttnUpBlock2D", "CrossAttnUpBlock2D")`):
+        mid_block_type (`str`, *optional*, defaults to `"UNetMidBlock1DCrossAttn"`):
+            Block type for middle of UNet, it can be one of `UNetMidBlock1DCrossAttn`, `UNetMidBlock1D`, or
+            `UNetMidBlock1DSimpleCrossAttn`. If `None`, the mid block layer is skipped.
+        up_block_types (`Tuple[str]`, *optional*, defaults to `("UpBlock1D", "CrossAttnUpBlock1D", "CrossAttnUpBlock1D", "CrossAttnUpBlock1D")`):
             The tuple of upsample blocks to use.
         only_cross_attention(`bool` or `Tuple[bool]`, *optional*, default to `False`):
             Whether to include self-attention in the basic transformer blocks, see
@@ -111,13 +111,13 @@ class UNet2DConditionModel(
             The dimension of the cross attention features.
         transformer_layers_per_block (`int`, `Tuple[int]`, or `Tuple[Tuple]` , *optional*, defaults to 1):
             The number of transformer blocks of type [`~models.attention.BasicTransformerBlock`]. Only relevant for
-            [`~models.unets.unet_2d_blocks.CrossAttnDownBlock2D`], [`~models.unets.unet_2d_blocks.CrossAttnUpBlock2D`],
-            [`~models.unets.unet_2d_blocks.UNetMidBlock2DCrossAttn`].
+            [`~models.unets.unet_1D_blocks.CrossAttnDownBlock1D`], [`~models.unets.unet_1D_blocks.CrossAttnUpBlock1D`],
+            [`~models.unets.unet_1D_blocks.UNetMidBlock1DCrossAttn`].
         reverse_transformer_layers_per_block : (`Tuple[Tuple]`, *optional*, defaults to None):
             The number of transformer blocks of type [`~models.attention.BasicTransformerBlock`], in the upsampling
             blocks of the U-Net. Only relevant if `transformer_layers_per_block` is of type `Tuple[Tuple]` and for
-            [`~models.unets.unet_2d_blocks.CrossAttnDownBlock2D`], [`~models.unets.unet_2d_blocks.CrossAttnUpBlock2D`],
-            [`~models.unets.unet_2d_blocks.UNetMidBlock2DCrossAttn`].
+            [`~models.unets.unet_1D_blocks.CrossAttnDownBlock1D`], [`~models.unets.unet_1D_blocks.CrossAttnUpBlock1D`],
+            [`~models.unets.unet_1D_blocks.UNetMidBlock1DCrossAttn`].
         encoder_hid_dim (`int`, *optional*, defaults to None):
             If `encoder_hid_dim_type` is defined, `encoder_hidden_states` will be projected from `encoder_hid_dim`
             dimension to `cross_attention_dim`.
@@ -128,7 +128,7 @@ class UNet2DConditionModel(
         num_attention_heads (`int`, *optional*):
             The number of attention heads. If not defined, defaults to `attention_head_dim`
         resnet_time_scale_shift (`str`, *optional*, defaults to `"default"`): Time scale shift config
-            for ResNet blocks (see [`~models.resnet.ResnetBlock2D`]). Choose from `default` or `scale_shift`.
+            for ResNet blocks (see [`~models.resnet.ResnetBlock1D`]). Choose from `default` or `scale_shift`.
         class_embed_type (`str`, *optional*, defaults to `None`):
             The type of class embedding to use which is ultimately summed with the time embeddings. Choose from `None`,
             `"timestep"`, `"identity"`, `"projection"`, or `"simple_projection"`.
@@ -158,14 +158,14 @@ class UNet2DConditionModel(
         class_embeddings_concat (`bool`, *optional*, defaults to `False`): Whether to concatenate the time
             embeddings with the class embeddings.
         mid_block_only_cross_attention (`bool`, *optional*, defaults to `None`):
-            Whether to use cross attention with the mid block when using the `UNetMidBlock2DSimpleCrossAttn`. If
+            Whether to use cross attention with the mid block when using the `UNetMidBlock1DSimpleCrossAttn`. If
             `only_cross_attention` is given as a single boolean and `mid_block_only_cross_attention` is `None`, the
             `only_cross_attention` value is used as the value for `mid_block_only_cross_attention`. Default to `False`
             otherwise.
     """
 
     _supports_gradient_checkpointing = True
-    _no_split_modules = ["BasicTransformerBlock", "ResnetBlock2D", "CrossAttnUpBlock2D"]
+    _no_split_modules = ["BasicTransformerBlock", "ResnetBlock1D", "CrossAttnUpBlock1D"]
 
     @register_to_config
     def __init__(
@@ -177,13 +177,13 @@ class UNet2DConditionModel(
         flip_sin_to_cos: bool = True,
         freq_shift: int = 0,
         down_block_types: Tuple[str] = (
-            "CrossAttnDownBlock2D",
-            "CrossAttnDownBlock2D",
-            "CrossAttnDownBlock2D",
-            "DownBlock2D",
+            "CrossAttnDownBlock1D",
+            "CrossAttnDownBlock1D",
+            "CrossAttnDownBlock1D",
+            "DownBlock1D",
         ),
-        mid_block_type: Optional[str] = "UNetMidBlock2DCrossAttn",
-        up_block_types: Tuple[str] = ("UpBlock2D", "CrossAttnUpBlock2D", "CrossAttnUpBlock2D", "CrossAttnUpBlock2D"),
+        mid_block_type: Optional[str] = "UNetMidBlock1DCrossAttn",
+        up_block_types: Tuple[str] = ("UpBlock1D", "CrossAttnUpBlock1D", "CrossAttnUpBlock1D", "CrossAttnUpBlock1D"),
         only_cross_attention: Union[bool, Tuple[bool]] = False,
         block_out_channels: Tuple[int] = (320, 640, 1280, 1280),
         layers_per_block: Union[int, Tuple[int]] = 2,
@@ -257,7 +257,7 @@ class UNet2DConditionModel(
 
         # input
         conv_in_padding = (conv_in_kernel - 1) // 2
-        self.conv_in = nn.Conv2d(
+        self.conv_in = nn.Conv1D(
             in_channels, block_out_channels[0], kernel_size=conv_in_kernel, padding=conv_in_padding
         )
 
@@ -478,7 +478,7 @@ class UNet2DConditionModel(
             self.conv_act = None
 
         conv_out_padding = (conv_out_kernel - 1) // 2
-        self.conv_out = nn.Conv2d(
+        self.conv_out = nn.Conv1D(
             block_out_channels[0], out_channels, kernel_size=conv_out_kernel, padding=conv_out_padding
         )
 
@@ -1051,9 +1051,9 @@ class UNet2DConditionModel(
         down_intrablock_additional_residuals: Optional[Tuple[torch.Tensor]] = None,
         encoder_attention_mask: Optional[torch.Tensor] = None,
         return_dict: bool = True,
-    ) -> Union[UNet2DConditionOutput, Tuple]:
+    ) -> Union[UNet1DConditionOutput, Tuple]:
         r"""
-        The [`UNet2DConditionModel`] forward method.
+        The [`UNet1DConditionModel`] forward method.
 
         Args:
             sample (`torch.Tensor`):
@@ -1088,12 +1088,12 @@ class UNet2DConditionModel(
                 `True` the mask is kept, otherwise if `False` it is discarded. Mask will be converted into a bias,
                 which adds large negative values to the attention scores corresponding to "discard" tokens.
             return_dict (`bool`, *optional*, defaults to `True`):
-                Whether or not to return a [`~models.unets.unet_2d_condition.UNet2DConditionOutput`] instead of a plain
+                Whether or not to return a [`~models.unets.unet_1D_condition.UNet1DConditionOutput`] instead of a plain
                 tuple.
 
         Returns:
-            [`~models.unets.unet_2d_condition.UNet2DConditionOutput`] or `tuple`:
-                If `return_dict` is True, an [`~models.unets.unet_2d_condition.UNet2DConditionOutput`] is returned,
+            [`~models.unets.unet_1D_condition.UNet1DConditionOutput`] or `tuple`:
+                If `return_dict` is True, an [`~models.unets.unet_1D_condition.UNet1DConditionOutput`] is returned,
                 otherwise a `tuple` is returned where the first element is the sample tensor.
         """
         # By default samples have to be AT least a multiple of the overall upsampling factor.
@@ -1208,7 +1208,7 @@ class UNet2DConditionModel(
         down_block_res_samples = (sample,)
         for downsample_block in self.down_blocks:
             if hasattr(downsample_block, "has_cross_attention") and downsample_block.has_cross_attention:
-                # For t2i-adapter CrossAttnDownBlock2D
+                # For t2i-adapter CrossAttnDownBlock1D
                 additional_residuals = {}
                 if is_adapter and len(down_intrablock_additional_residuals) > 0:
                     additional_residuals["additional_residuals"] = down_intrablock_additional_residuals.pop(0)
@@ -1309,4 +1309,4 @@ class UNet2DConditionModel(
         if not return_dict:
             return (sample,)
 
-        return UNet2DConditionOutput(sample=sample)
+        return UNet1DConditionOutput(sample=sample)
